@@ -1,4 +1,3 @@
-````markdown
 # Walker2d Reward Shaping Project
 
 This project investigates **reward shaping** and **robustness to perturbations** on the `Walker2d-v5` environment using multiple custom reward functions and a generic training script.
