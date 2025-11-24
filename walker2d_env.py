@@ -40,6 +40,8 @@ class GenericRewardWrapper(gym.Wrapper):
         env: gym.Env,
         reward_name: str,
         reward_params: Optional[Dict[str, Any]] = None,
+        obs_noise_std: float = 0.0,
+        action_noise_std: float = 0.0,
     ):
         super().__init__(env)
 
@@ -56,6 +58,15 @@ class GenericRewardWrapper(gym.Wrapper):
         # Internal state for the reward (previous obs, actions, etc.)
         self.reward_state: RewardState = {}
 
+#obs_noise
+        self.obs_noise_std = obs_noise_std
+        self.action_noise_std = action_noise_std
+        self._step_count = 0
+        print(
+            f"[Env] GenericRewardWrapper initialized with "
+            f"obs_noise_std={self.obs_noise_std}, action_noise_std={self.action_noise_std}"
+        )
+
     def reset(self, **kwargs):
         """
         Reset the environment and the internal reward state.
@@ -64,6 +75,7 @@ class GenericRewardWrapper(gym.Wrapper):
         # Here you could add reset-time perturbations later, e.g.:
         # - randomize the initial state more aggressively
         # - inject domain randomization parameters
+        self._step_count = 0
         obs, info = self.env.reset(**kwargs)
 
         # Reset the reward internal state at the beginning of each episode
@@ -80,18 +92,51 @@ class GenericRewardWrapper(gym.Wrapper):
         # action_perturbed = action
         # action_perturbed = add_noise(action_perturbed, ...)
         # For now we keep it unchanged:
-        action_to_env = action
+        #Observaion Noise
+        self._step_count += 1
+        #Action Noise
 
+
+        action_to_env = np.array(action, copy=True)
+
+        if self.action_noise_std > 0.0:
+            action_noise = np.random.randn(*action_to_env.shape) * self.action_noise_std
+            action_to_env = action_to_env + action_noise
+
+            if self._step_count % 1000 == 0:
+                noise_abs_mean = float(np.abs(action_noise).mean())
+                noise_abs_max = float(np.abs(action_noise).max())
+                print(
+                    f"[ActionNoise] step={self._step_count} "
+                    f"action_noise_std={self.action_noise_std:.4f} "
+                    f"noise_abs_mean={noise_abs_mean:.4f} "
+                    f"noise_abs_max={noise_abs_max:.4f}"
+                )
         # Call the original environment
         obs, base_reward, terminated, truncated, info = self.env.step(action_to_env)
 
         # TODO: perturbations
+        obs_for_agent = obs
+
+        if self.obs_noise_std > 0.0:
+            noise = np.random.randn(*obs.shape) * self.obs_noise_std
+            obs_for_agent = obs + noise
+
+            if self._step_count % 1000 == 0:
+                noise_abs_mean = float(np.abs(noise).mean())
+                noise_abs_max = float(np.abs(noise).max())
+                print(
+                    f"[Noise] step={self._step_count} "
+                    f"obs_noise_std={self.obs_noise_std:.4f} "
+                    f"noise_abs_mean={noise_abs_mean:.4f} "
+                    f"noise_abs_max={noise_abs_max:.4f}"
+                )
         # Here you could perturb the observation or info AFTER the env step,
         # e.g. sensor noise, missing joints, etc.
         # obs_perturbed = obs
         # obs_perturbed = add_observation_noise(obs_perturbed, ...)
         # For now, we keep it unchanged:
-        obs_for_reward = obs
+        obs_for_reward = obs_for_agent
 
         # Compute the new reward using the selected reward function
         new_reward, new_state = self.reward_fn(
@@ -104,7 +149,7 @@ class GenericRewardWrapper(gym.Wrapper):
         )
         self.reward_state = new_state
 
-        return obs, new_reward, terminated, truncated, info
+        return obs_for_agent, new_reward, terminated, truncated, info
 
 
 def make_walker2d_env(
@@ -113,6 +158,9 @@ def make_walker2d_env(
     record_video: bool = False,
     video_folder: str = "./videos",
     video_prefix: Optional[str] = None,
+    obs_noise_std: float = 0.0,
+    action_noise_std: float = 0.0,
+
 ) -> gym.Env:
     """
     Create a Walker2d-v5 environment with a custom reward function.
@@ -149,6 +197,8 @@ def make_walker2d_env(
         base_env,
         reward_name=reward_name,
         reward_params=reward_params,
+        obs_noise_std=obs_noise_std,
+        action_noise_std=action_noise_std,
     )
 
     # TODO: perturbations

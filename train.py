@@ -92,6 +92,19 @@ def main():
         default="./videos_cli",
         help="Folder where evaluation videos are saved (if --video is used).",
     )
+    parser.add_argument(
+        "--obs-noise-std",
+        type=float,
+        default=0.0,
+        help="Std of Gaussian noise added to observations in the wrapper.",
+    )
+    parser.add_argument(
+        "--action-noise-std",
+        type=float,
+        default=0.0,
+        help="Std of Gaussian noise added to actions in the wrapper.",
+    )
+
     args = parser.parse_args()
 
     reward_params = parse_reward_params(args.reward_param)
@@ -106,6 +119,8 @@ def main():
         reward_name=args.reward,
         reward_params=reward_params,
         record_video=False,
+        obs_noise_std=args.obs_noise_std,
+        action_noise_std=args.action_noise_std,
     )
 
     # Train SAC on the selected reward
@@ -122,6 +137,8 @@ def main():
             record_video=True,
             video_folder=args.video_folder,
             video_prefix=f"walker2d-{args.reward}",
+            obs_noise_std=args.obs_noise_std,
+            action_noise_std=args.action_noise_std,
         )
 
         obs, info = eval_env.reset()
