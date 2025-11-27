@@ -15,6 +15,7 @@ from typing import Dict, Any, Optional
 import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers import RecordVideo
+import csv
 
 # Import the reward registry from your reward file
 from reward_function import REWARD_FNS
@@ -23,6 +24,31 @@ from reward_function import REWARD_FNS
 # Type aliases (for clarity, optional)
 RewardState = Dict[str, Any]
 
+import csv
+import numpy as np
+
+def save_noise_csv(filename, obs_noise_list, action_noise_list):
+    if len(obs_noise_list) != len(action_noise_list):
+        raise ValueError("The lengths of obs_noise_list and action_noise_list must be the same.")
+
+    obs_dim = len(obs_noise_list[0])
+    act_dim = len(action_noise_list[0])
+
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+
+        header = ["timestep"]
+        header += [f"obs_noise_{i}" for i in range(obs_dim)]
+        header += [f"action_noise_{i}" for i in range(act_dim)]
+        writer.writerow(header)
+
+        for t, (obs_n, act_n) in enumerate(zip(obs_noise_list, action_noise_list)):
+            if isinstance(obs_n, np.ndarray):
+                obs_n = list(obs_n)
+            if isinstance(act_n, np.ndarray):
+                act_n = list(act_n)
+            row = [t] + obs_n + act_n
+            writer.writerow(row)
 
 class GenericRewardWrapper(gym.Wrapper):
     """
@@ -42,6 +68,8 @@ class GenericRewardWrapper(gym.Wrapper):
         reward_params: Optional[Dict[str, Any]] = None,
         obs_noise_std: float = 0.0,
         action_noise_std: float = 0.0,
+        log_dir: Optional[str] = None,
+        run_name: Optional[str] = None,
     ):
         super().__init__(env)
 
@@ -58,14 +86,26 @@ class GenericRewardWrapper(gym.Wrapper):
         # Internal state for the reward (previous obs, actions, etc.)
         self.reward_state: RewardState = {}
 
-#obs_noise
+        #obs_noise
         self.obs_noise_std = obs_noise_std
         self.action_noise_std = action_noise_std
+        self.obs_noise_list = []
+        self.action_noise_list = []
         self._step_count = 0
         print(
             f"[Env] GenericRewardWrapper initialized with "
             f"obs_noise_std={self.obs_noise_std}, action_noise_std={self.action_noise_std}"
         )
+
+        if log_dir is None:
+            self.log_dir = "./logs"
+        else:
+            self.log_dir = log_dir
+
+        if run_name is None:
+            self.run_name = "default_run"
+        else:
+            self.run_name = run_name
 
     def reset(self, **kwargs):
         """
@@ -85,23 +125,17 @@ class GenericRewardWrapper(gym.Wrapper):
     def step(self, action):
         """
         Step the underlying environment and then compute the custom reward.
+
+        Here we implement a simple framework to add observation and action noise,
+        e.g. to simulate actuator noise, external pushes, sensor noise, etc.
+
         """
-        # TODO: perturbations
-        # Here you could perturb the action before sending it to the env,
-        # e.g. actuator noise, external pushes, action scaling, etc.
-        # action_perturbed = action
-        # action_perturbed = add_noise(action_perturbed, ...)
-        # For now we keep it unchanged:
-        #Observaion Noise
-        self._step_count += 1
-        #Action Noise
-
-
         action_to_env = np.array(action, copy=True)
 
         if self.action_noise_std > 0.0:
             action_noise = np.random.randn(*action_to_env.shape) * self.action_noise_std
-            action_to_env = action_to_env + action_noise
+            action_to_env += action_noise
+            self.action_noise_list.append(action_noise)
 
             if self._step_count % 1000 == 0:
                 noise_abs_mean = float(np.abs(action_noise).mean())
@@ -112,15 +146,14 @@ class GenericRewardWrapper(gym.Wrapper):
                     f"noise_abs_mean={noise_abs_mean:.4f} "
                     f"noise_abs_max={noise_abs_max:.4f}"
                 )
+                
         # Call the original environment
         obs, base_reward, terminated, truncated, info = self.env.step(action_to_env)
-
-        # TODO: perturbations
-        obs_for_agent = obs
 
         if self.obs_noise_std > 0.0:
             noise = np.random.randn(*obs.shape) * self.obs_noise_std
             obs_for_agent = obs + noise
+            self.obs_noise_list.append(noise)
 
             if self._step_count % 1000 == 0:
                 noise_abs_mean = float(np.abs(noise).mean())
@@ -131,16 +164,12 @@ class GenericRewardWrapper(gym.Wrapper):
                     f"noise_abs_mean={noise_abs_mean:.4f} "
                     f"noise_abs_max={noise_abs_max:.4f}"
                 )
-        # Here you could perturb the observation or info AFTER the env step,
-        # e.g. sensor noise, missing joints, etc.
-        # obs_perturbed = obs
-        # obs_perturbed = add_observation_noise(obs_perturbed, ...)
-        # For now, we keep it unchanged:
-        obs_for_reward = obs_for_agent
+        else:
+            obs_for_agent = obs
 
         # Compute the new reward using the selected reward function
         new_reward, new_state = self.reward_fn(
-            obs=obs_for_reward,
+            obs=obs_for_agent,
             action=np.array(action_to_env),
             base_reward=float(base_reward),
             info=info,
@@ -148,6 +177,17 @@ class GenericRewardWrapper(gym.Wrapper):
             params=self.reward_params,
         )
         self.reward_state = new_state
+
+        if self._step_count % 1000 == 0 and (self.obs_noise_std > 0.0 or self.action_noise_std > 0.0):
+            if self.obs_noise_std <= 0.0:
+                self.obs_noise_list = [[0]]*len(self.action_noise_list)
+            if self.action_noise_std <= 0.0:
+                self.action_noise_list = [[0]]*len(self.obs_noise_list)
+            filename = f"{self.log_dir}/noise-{self.run_name}.csv"
+            save_noise_csv(filename, self.obs_noise_list, self.action_noise_list)
+            print(f"[Env] Saved noise data to {filename}")
+
+        self._step_count += 1
 
         return obs_for_agent, new_reward, terminated, truncated, info
 
@@ -160,7 +200,8 @@ def make_walker2d_env(
     video_prefix: Optional[str] = None,
     obs_noise_std: float = 0.0,
     action_noise_std: float = 0.0,
-
+    log_dir: Optional[str] = None,
+    run_name: Optional[str] = None,
 ) -> gym.Env:
     """
     Create a Walker2d-v5 environment with a custom reward function.
@@ -178,6 +219,14 @@ def make_walker2d_env(
         Directory where videos will be saved if record_video=True.
     video_prefix : str, optional
         Prefix for video filenames. If None, defaults to "walker2d-{reward_name}".
+    obs_noise_std : float
+        Standard deviation of Gaussian noise to add to observations.
+    action_noise_std : float
+        Standard deviation of Gaussian noise to add to actions.
+    log_dir : str, optional
+        Directory for logging noise data.
+    run_name : str, optional
+        Name of the current run (for logging purposes).
 
     Returns
     -------
@@ -199,6 +248,8 @@ def make_walker2d_env(
         reward_params=reward_params,
         obs_noise_std=obs_noise_std,
         action_noise_std=action_noise_std,
+        log_dir=log_dir,
+        run_name=run_name,
     )
 
     # TODO: perturbations
