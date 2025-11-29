@@ -92,6 +92,8 @@ class GenericRewardWrapper(gym.Wrapper):
         self.obs_noise_list = []
         self.action_noise_list = []
         self._step_count = 0
+        self.obs_dim = int(np.prod(self.env.observation_space.shape))
+        self.act_dim = int(np.prod(self.env.action_space.shape))
         print(
             f"[Env] GenericRewardWrapper initialized with "
             f"obs_noise_std={self.obs_noise_std}, action_noise_std={self.action_noise_std}"
@@ -126,16 +128,22 @@ class GenericRewardWrapper(gym.Wrapper):
         """
         Step the underlying environment and then compute the custom reward.
 
-        Here we implement a simple framework to add observation and action noise,
-        e.g. to simulate actuator noise, external pushes, sensor noise, etc.
+        We add optional Gaussian noise:
+        - action_noise_std: actuator noise (applied to action before env.step)
+        - obs_noise_std: sensor noise (applied to obs after env.step)
 
+        IMPORTANT FIX:
+        We ALWAYS append a noise vector for BOTH action and observation at each step.
+        If a noise is disabled (std == 0), we append a zero vector with the correct shape.
+        This avoids shape=1 bugs and ensures CSV columns are consistent.
         """
         action_to_env = np.array(action, copy=True)
 
+        # --- Action noise: always create + always log ---
+        action_noise = np.zeros_like(action_to_env, dtype=np.float64)
         if self.action_noise_std > 0.0:
             action_noise = np.random.randn(*action_to_env.shape) * self.action_noise_std
-            action_to_env += action_noise
-            self.action_noise_list.append(action_noise)
+            action_to_env = action_to_env + action_noise
 
             if self._step_count % 1000 == 0:
                 noise_abs_mean = float(np.abs(action_noise).mean())
@@ -146,30 +154,42 @@ class GenericRewardWrapper(gym.Wrapper):
                     f"noise_abs_mean={noise_abs_mean:.4f} "
                     f"noise_abs_max={noise_abs_max:.4f}"
                 )
-                
-        # Call the original environment
+
+        # Clip the action after adding noise (recommended for Box action space)
+        try:
+            action_to_env = np.clip(action_to_env, self.action_space.low, self.action_space.high)
+        except Exception:
+            pass
+
+        # Always append (real noise or zeros)
+        self.action_noise_list.append(action_noise)
+
+        # --- Call the original environment ---
         obs, base_reward, terminated, truncated, info = self.env.step(action_to_env)
 
+        # --- Observation noise: always create + always log ---
+        obs_noise = np.zeros_like(obs, dtype=np.float64)
         if self.obs_noise_std > 0.0:
-            noise = np.random.randn(*obs.shape) * self.obs_noise_std
-            obs_for_agent = obs + noise
-            self.obs_noise_list.append(noise)
+            obs_noise = np.random.randn(*obs.shape) * self.obs_noise_std
 
             if self._step_count % 1000 == 0:
-                noise_abs_mean = float(np.abs(noise).mean())
-                noise_abs_max = float(np.abs(noise).max())
+                noise_abs_mean = float(np.abs(obs_noise).mean())
+                noise_abs_max = float(np.abs(obs_noise).max())
                 print(
                     f"[Noise] step={self._step_count} "
                     f"obs_noise_std={self.obs_noise_std:.4f} "
                     f"noise_abs_mean={noise_abs_mean:.4f} "
                     f"noise_abs_max={noise_abs_max:.4f}"
                 )
-        else:
-            obs_for_agent = obs
 
-        # Compute the new reward using the selected reward function
+        obs_for_agent = obs + obs_noise
+
+        # Always append (real noise or zeros)
+        self.obs_noise_list.append(obs_noise)
+
+        # --- Compute the new reward using the selected reward function ---
         new_reward, new_state = self.reward_fn(
-            obs=obs_for_agent,
+            obs=obs,
             action=np.array(action_to_env),
             base_reward=float(base_reward),
             info=info,
@@ -178,11 +198,11 @@ class GenericRewardWrapper(gym.Wrapper):
         )
         self.reward_state = new_state
 
-        if self._step_count % 1000 == 0 and (self.obs_noise_std > 0.0 or self.action_noise_std > 0.0):
-            if self.obs_noise_std <= 0.0:
-                self.obs_noise_list = [[0]]*len(self.action_noise_list)
-            if self.action_noise_std <= 0.0:
-                self.action_noise_list = [[0]]*len(self.obs_noise_list)
+        # --- Save noise CSV sometimes (only if at least one noise is enabled) ---
+        if (
+            self._step_count % 1000 == 0
+            and (self.obs_noise_std > 0.0 or self.action_noise_std > 0.0)
+        ):
             filename = f"{self.log_dir}/noise-{self.run_name}.csv"
             save_noise_csv(filename, self.obs_noise_list, self.action_noise_list)
             print(f"[Env] Saved noise data to {filename}")

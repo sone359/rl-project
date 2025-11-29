@@ -197,5 +197,93 @@ def main():
 
     print(f"[SUCCESS] Plots saved to: {save_dir}")
 
+    # --- Plot 4: Relative performance drop vs Baseline ---
+    final_means = end_training_df.groupby("noise_type")["r"].mean()
+
+    baseline_name = "Baseline (Clean)"
+    if baseline_name in final_means.index:
+        baseline = float(final_means.loc[baseline_name])
+        drop_df = final_means.reset_index()
+        drop_df["drop_percent"] = 100.0 * (baseline - drop_df["r"]) / (abs(baseline) + 1e-9)
+
+        plt.figure(figsize=(8, 6))
+        sns.barplot(data=drop_df, x="noise_type", y="drop_percent")
+        plt.title(f"Relative Performance Drop vs Baseline (%)\nParams: {reward_params}")
+        plt.ylabel("Drop (%)")
+        plt.xlabel("Noise Scenario")
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, "robustness_drop_percent.png"), dpi=150)
+        plt.close()
+
+    import numpy as np
+
+    # --- Plot 5: Learning curve AUC (area under curve) ---
+    auc_rows = []
+    for nt, g in full_df.groupby("noise_type"):
+        g2 = g.sort_values("timesteps")
+        auc = float(np.trapz(g2["smoothed_reward"].values, g2["timesteps"].values))
+        auc_rows.append({"noise_type": nt, "auc": auc})
+
+    auc_df = pd.DataFrame(auc_rows)
+
+    plt.figure(figsize=(8, 6))
+    sns.barplot(data=auc_df, x="noise_type", y="auc")
+    plt.title(f"Sample Efficiency (AUC of Smoothed Reward)\nParams: {reward_params}")
+    plt.ylabel("AUC")
+    plt.xlabel("Noise Scenario")
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "auc_sample_efficiency.png"), dpi=150)
+    plt.close()
+
+    # --- Plot 6: Noise magnitude over time (if noise logs exist) ---
+    noise_mag_frames = []
+
+    for file_path in found_files:
+        monitor_base = os.path.basename(file_path)
+        noise_base = monitor_base.replace("monitor-", "noise-").replace(".csv.monitor.csv", ".csv")
+        noise_path = os.path.join(args.log_dir, noise_base)
+
+        if not os.path.exists(noise_path):
+            continue
+
+        ndf = pd.read_csv(noise_path)
+        ndf["noise_type"] = get_noise_label(monitor_base)
+
+        obs_cols = [c for c in ndf.columns if c.startswith("obs_noise_")]
+        act_cols = [c for c in ndf.columns if c.startswith("action_noise_")]
+
+        if obs_cols:
+            ndf["obs_noise_rms"] = np.sqrt((ndf[obs_cols] ** 2).mean(axis=1))
+        else:
+            ndf["obs_noise_rms"] = 0.0
+
+        if act_cols:
+            ndf["act_noise_rms"] = np.sqrt((ndf[act_cols] ** 2).mean(axis=1))
+        else:
+            ndf["act_noise_rms"] = 0.0
+
+        noise_mag_frames.append(ndf[["timestep", "noise_type", "obs_noise_rms", "act_noise_rms"]])
+
+    if noise_mag_frames:
+        noise_df = pd.concat(noise_mag_frames, ignore_index=True)
+
+        plt.figure(figsize=(10, 6))
+        sns.lineplot(data=noise_df, x="timestep", y="act_noise_rms", hue="noise_type")
+        plt.title("Action Noise RMS over Time")
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, "noise_action_rms.png"), dpi=150)
+        plt.close()
+
+        plt.figure(figsize=(10, 6))
+        sns.lineplot(data=noise_df, x="timestep", y="obs_noise_rms", hue="noise_type")
+        plt.title("Observation Noise RMS over Time")
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, "noise_obs_rms.png"), dpi=150)
+        plt.close()
+
+
+
+
+
 if __name__ == "__main__":
     main()
