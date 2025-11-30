@@ -12,7 +12,7 @@ MAX_JOBS=4
 
 # Duration of training for each model (in timesteps).
 # 100,000 is good for quick tests. For final results, aim for 1,000,000+.
-TIMESTEPS=1000000
+TIMESTEPS=800000
 
 # Random Seed to ensure results are reproducible.
 SEED=42
@@ -129,43 +129,43 @@ NOISE_CONFIGS=(
 )
 
 # --- EXPERIMENT LIST ---
-# To add an experiment, copy a block and change the parameters.
+To add an experiment, copy a block and change the parameters.
 
-# # 1. REWARD: speed_energy (Classic)
-# for noise in "${NOISE_CONFIGS[@]}"; do
-#     obs=${noise% *}
-#     act=${noise#* }
+# 1. REWARD: speed_energy (Classic)
+for noise in "${NOISE_CONFIGS[@]}"; do
+    obs=${noise% *}
+    act=${noise#* }
     
-#     # Config A: Standard
-#     launch_exp "speed_energy" $obs $act "w_forward=1.0" "w_ctrl=1.0" "w_survive=1.0"
+    # Config A: Standard
+    launch_exp "speed_energy" $obs $act "w_forward=1.0" "w_ctrl=1.0" "w_survive=1.0"
     
-#     # Config B: Cautious (High survival bonus)
-#     launch_exp "speed_energy" $obs $act "w_forward=0.5" "w_ctrl=1.0" "w_survive=3.0"
-# done
+    # Config B: Cautious (High survival bonus)
+    launch_exp "speed_energy" $obs $act "w_forward=0.5" "w_ctrl=1.0" "w_survive=3.0"
+done
 
-# # 2. REWARD: target_speed (Tracking specific speed)
-# for noise in "${NOISE_CONFIGS[@]}"; do
-#     obs=${noise% *}
-#     act=${noise#* }
+# 2. REWARD: target_speed (Tracking specific speed)
+for noise in "${NOISE_CONFIGS[@]}"; do
+    obs=${noise% *}
+    act=${noise#* }
     
-#     # Config A: Slow Walk (1.5 m/s)
-#     launch_exp "target_speed" $obs $act "v_target=1.5" "alpha=1.0" "beta=0.001"
+    # Config A: Slow Walk (1.5 m/s)
+    launch_exp "target_speed" $obs $act "v_target=1.5" "alpha=1.0" "beta=0.001"
     
-#     # Config B: Fast Walk (2.5 m/s)
-#     launch_exp "target_speed" $obs $act "v_target=2.5" "alpha=1.0" "beta=0.001"
-# done
+    # Config B: Fast Walk (2.5 m/s)
+    launch_exp "target_speed" $obs $act "v_target=2.5" "alpha=1.0" "beta=0.001"
+done
 
-# # 3. REWARD: posture_stability (Elegant robot)
-# for noise in "${NOISE_CONFIGS[@]}"; do
-#     obs=${noise% *}
-#     act=${noise#* }
+# 3. REWARD: posture_stability (Elegant robot)
+for noise in "${NOISE_CONFIGS[@]}"; do
+    obs=${noise% *}
+    act=${noise#* }
     
-#     # Config A: Standard
-#     launch_exp "posture_stability" $obs $act "h_target=1.25" "w_h=5.0" "w_angle=1.0"
+    # Config A: Standard
+    launch_exp "posture_stability" $obs $act "h_target=1.25" "w_h=5.0" "w_angle=1.0"
     
-#     # Config B: Rigid Robot (Heavy angle penalty)
-#     launch_exp "posture_stability" $obs $act "h_target=1.25" "w_h=5.0" "w_angle=10.0"
-# done
+    # Config B: Rigid Robot (Heavy angle penalty)
+    launch_exp "posture_stability" $obs $act "h_target=1.25" "w_h=5.0" "w_angle=10.0"
+done
 
 # # 4. REWARD: smooth_actions (Fluid movements)
 # for noise in "${NOISE_CONFIGS[@]}"; do
@@ -185,7 +185,7 @@ for noise in "${NOISE_CONFIGS[@]}"; do
     act=${noise#* }
     
     launch_exp "dynamic_stability" $obs $act "lambda_state=0.01"
-    #launch_exp "dynamic_stability" $obs $act "lambda_state=0.001"
+    launch_exp "dynamic_stability" $obs $act "lambda_state=0.001"
 done
 
 # # 6. REWARD: anti_fall_progressive (Fall prevention)

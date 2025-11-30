@@ -6,7 +6,7 @@
 LOG_DIR="./logs"
 OUTPUT_DIR="./plots"
 PYTHON_SCRIPT="plots.py"
-TIMESTEPS=1000000
+TIMESTEPS=800000
 SEED=42
 
 # Ensure python dependencies
@@ -49,51 +49,51 @@ function launch_plot {
 
 echo "Starting plot generation..."
 
-# 1. REWARD: speed_energy
-# Config A: Standard
-launch_plot "speed_energy" "w_forward=1.0" "w_ctrl=1.0" "w_survive=1.0"
-# Config B: Cautious
-launch_plot "speed_energy" "w_forward=0.5" "w_ctrl=1.0" "w_survive=3.0"
+# # 1. REWARD: speed_energy
+# # Config A: Standard
+# launch_plot "speed_energy" "w_forward=1.0" "w_ctrl=1.0" "w_survive=1.0"
+# # Config B: Cautious
+# launch_plot "speed_energy" "w_forward=0.5" "w_ctrl=1.0" "w_survive=3.0"
 
 
-# 2. REWARD: target_speed
-# Config A: Slow Walk
-launch_plot "target_speed" "v_target=1.5" "alpha=1.0" "beta=0.001"
-# Config B: Fast Walk
-launch_plot "target_speed" "v_target=2.5" "alpha=1.0" "beta=0.001"
+# # 2. REWARD: target_speed
+# # Config A: Slow Walk
+# launch_plot "target_speed" "v_target=1.5" "alpha=1.0" "beta=0.001"
+# # Config B: Fast Walk
+# launch_plot "target_speed" "v_target=2.5" "alpha=1.0" "beta=0.001"
 
 
-# 3. REWARD: posture_stability
-# Config A: Standard
-launch_plot "posture_stability" "h_target=1.25" "w_h=5.0" "w_angle=1.0"
-# Config B: Rigid Robot
-launch_plot "posture_stability" "h_target=1.25" "w_h=5.0" "w_angle=10.0"
+# # 3. REWARD: posture_stability
+# # Config A: Standard
+# launch_plot "posture_stability" "h_target=1.25" "w_h=5.0" "w_angle=1.0"
+# # Config B: Rigid Robot
+# launch_plot "posture_stability" "h_target=1.25" "w_h=5.0" "w_angle=10.0"
 
 
-# 4. REWARD: smooth_actions
-# Config A: Light Smoothing
-launch_plot "smooth_actions" "lambda_smooth=0.01"
-# Config B: Heavy Smoothing
-launch_plot "smooth_actions" "lambda_smooth=0.1"
+# # 4. REWARD: smooth_actions
+# # Config A: Light Smoothing
+# launch_plot "smooth_actions" "lambda_smooth=0.01"
+# # Config B: Heavy Smoothing
+# launch_plot "smooth_actions" "lambda_smooth=0.1"
 
 
 # 5. REWARD: dynamic_stability
 launch_plot "dynamic_stability" "lambda_state=0.01"
-launch_plot "dynamic_stability" "lambda_state=0.05"
+launch_plot "dynamic_stability" "lambda_state=0.001"
 
 
-# 6. REWARD: anti_fall_progressive
-# Config A: Early Detection
-launch_plot "anti_fall_progressive" "h_crit=1.1" "w_h=5.0"
-# Config B: Late Detection
-launch_plot "anti_fall_progressive" "h_crit=0.8" "w_h=5.0"
+# # 6. REWARD: anti_fall_progressive
+# # Config A: Early Detection
+# launch_plot "anti_fall_progressive" "h_crit=1.1" "w_h=5.0"
+# # Config B: Late Detection
+# launch_plot "anti_fall_progressive" "h_crit=0.8" "w_h=5.0"
 
 
-# 7. REWARD: robust_econ
-# Config A: Balanced
-launch_plot "robust_econ" "v_weight=1.0" "energy_weight=0.001"
-# Config B: Very Economical
-launch_plot "robust_econ" "v_weight=1.0" "energy_weight=0.01"
+# # 7. REWARD: robust_econ
+# # Config A: Balanced
+# launch_plot "robust_econ" "v_weight=1.0" "energy_weight=0.001"
+# # Config B: Very Economical
+# launch_plot "robust_econ" "v_weight=1.0" "energy_weight=0.01"
 
 
 echo "-----------------------------------------------------"
