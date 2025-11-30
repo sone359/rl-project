@@ -8,7 +8,7 @@
 # Number of CPU cores to use simultaneously.
 # Tip: Always leave 2-4 cores free for the OS and background tasks.
 # Example: On a 14-core machine, setting this to 10 is ideal.
-MAX_JOBS=10
+MAX_JOBS=4
 
 # Duration of training for each model (in timesteps).
 # 100,000 is good for quick tests. For final results, aim for 1,000,000+.
@@ -123,61 +123,61 @@ echo "Starting campaign on $MAX_JOBS cores..."
 # Each line represents a scenario: "obs_noise action_noise"
 NOISE_CONFIGS=(
     "0.0 0.0"   # Baseline: No noise (Perfect environment)
-    "0.1 0.0"   # Noisy Sensors: The robot sees poorly
+    "0.01 0.0"   # Noisy Sensors: The robot sees poorly
     "0.0 0.1"   # Noisy Motors: The robot trembles
-    "0.1 0.1"   # Hard Mode: Noisy sensors AND noisy motors
+    "0.01 0.1"   # Hard Mode: Noisy sensors AND noisy motors
 )
 
 # --- EXPERIMENT LIST ---
 # To add an experiment, copy a block and change the parameters.
 
-# 1. REWARD: speed_energy (Classic)
-for noise in "${NOISE_CONFIGS[@]}"; do
-    obs=${noise% *}
-    act=${noise#* }
+# # 1. REWARD: speed_energy (Classic)
+# for noise in "${NOISE_CONFIGS[@]}"; do
+#     obs=${noise% *}
+#     act=${noise#* }
     
-    # Config A: Standard
-    launch_exp "speed_energy" $obs $act "w_forward=1.0" "w_ctrl=1.0" "w_survive=1.0"
+#     # Config A: Standard
+#     launch_exp "speed_energy" $obs $act "w_forward=1.0" "w_ctrl=1.0" "w_survive=1.0"
     
-    # Config B: Cautious (High survival bonus)
-    launch_exp "speed_energy" $obs $act "w_forward=0.5" "w_ctrl=1.0" "w_survive=3.0"
-done
+#     # Config B: Cautious (High survival bonus)
+#     launch_exp "speed_energy" $obs $act "w_forward=0.5" "w_ctrl=1.0" "w_survive=3.0"
+# done
 
-# 2. REWARD: target_speed (Tracking specific speed)
-for noise in "${NOISE_CONFIGS[@]}"; do
-    obs=${noise% *}
-    act=${noise#* }
+# # 2. REWARD: target_speed (Tracking specific speed)
+# for noise in "${NOISE_CONFIGS[@]}"; do
+#     obs=${noise% *}
+#     act=${noise#* }
     
-    # Config A: Slow Walk (1.5 m/s)
-    launch_exp "target_speed" $obs $act "v_target=1.5" "alpha=1.0" "beta=0.001"
+#     # Config A: Slow Walk (1.5 m/s)
+#     launch_exp "target_speed" $obs $act "v_target=1.5" "alpha=1.0" "beta=0.001"
     
-    # Config B: Fast Walk (2.5 m/s)
-    launch_exp "target_speed" $obs $act "v_target=2.5" "alpha=1.0" "beta=0.001"
-done
+#     # Config B: Fast Walk (2.5 m/s)
+#     launch_exp "target_speed" $obs $act "v_target=2.5" "alpha=1.0" "beta=0.001"
+# done
 
-# 3. REWARD: posture_stability (Elegant robot)
-for noise in "${NOISE_CONFIGS[@]}"; do
-    obs=${noise% *}
-    act=${noise#* }
+# # 3. REWARD: posture_stability (Elegant robot)
+# for noise in "${NOISE_CONFIGS[@]}"; do
+#     obs=${noise% *}
+#     act=${noise#* }
     
-    # Config A: Standard
-    launch_exp "posture_stability" $obs $act "h_target=1.25" "w_h=5.0" "w_angle=1.0"
+#     # Config A: Standard
+#     launch_exp "posture_stability" $obs $act "h_target=1.25" "w_h=5.0" "w_angle=1.0"
     
-    # Config B: Rigid Robot (Heavy angle penalty)
-    launch_exp "posture_stability" $obs $act "h_target=1.25" "w_h=5.0" "w_angle=10.0"
-done
+#     # Config B: Rigid Robot (Heavy angle penalty)
+#     launch_exp "posture_stability" $obs $act "h_target=1.25" "w_h=5.0" "w_angle=10.0"
+# done
 
-# 4. REWARD: smooth_actions (Fluid movements)
-for noise in "${NOISE_CONFIGS[@]}"; do
-    obs=${noise% *}
-    act=${noise#* }
+# # 4. REWARD: smooth_actions (Fluid movements)
+# for noise in "${NOISE_CONFIGS[@]}"; do
+#     obs=${noise% *}
+#     act=${noise#* }
     
-    # Config A: Light Smoothing
-    launch_exp "smooth_actions" $obs $act "lambda_smooth=0.01"
+#     # Config A: Light Smoothing
+#     launch_exp "smooth_actions" $obs $act "lambda_smooth=0.01"
     
-    # Config B: Heavy Smoothing (Potentially sluggish but robust)
-    launch_exp "smooth_actions" $obs $act "lambda_smooth=0.1"
-done
+#     # Config B: Heavy Smoothing (Potentially sluggish but robust)
+#     launch_exp "smooth_actions" $obs $act "lambda_smooth=0.1"
+# done
 
 # 5. REWARD: dynamic_stability
 for noise in "${NOISE_CONFIGS[@]}"; do
@@ -185,32 +185,32 @@ for noise in "${NOISE_CONFIGS[@]}"; do
     act=${noise#* }
     
     launch_exp "dynamic_stability" $obs $act "lambda_state=0.01"
-    launch_exp "dynamic_stability" $obs $act "lambda_state=0.05"
+    #launch_exp "dynamic_stability" $obs $act "lambda_state=0.001"
 done
 
-# 6. REWARD: anti_fall_progressive (Fall prevention)
-for noise in "${NOISE_CONFIGS[@]}"; do
-    obs=${noise% *}
-    act=${noise#* }
+# # 6. REWARD: anti_fall_progressive (Fall prevention)
+# for noise in "${NOISE_CONFIGS[@]}"; do
+#     obs=${noise% *}
+#     act=${noise#* }
     
-    # Config A: Early Detection (Punishes as soon as height drops slightly)
-    launch_exp "anti_fall_progressive" $obs $act "h_crit=1.1" "w_h=5.0"
+#     # Config A: Early Detection (Punishes as soon as height drops slightly)
+#     launch_exp "anti_fall_progressive" $obs $act "h_crit=1.1" "w_h=5.0"
     
-    # Config B: Late Detection (Punishes only near the ground)
-    launch_exp "anti_fall_progressive" $obs $act "h_crit=0.8" "w_h=5.0"
-done
+#     # Config B: Late Detection (Punishes only near the ground)
+#     launch_exp "anti_fall_progressive" $obs $act "h_crit=0.8" "w_h=5.0"
+# done
 
-# 7. REWARD: robust_econ (Energy economy)
-for noise in "${NOISE_CONFIGS[@]}"; do
-    obs=${noise% *}
-    act=${noise#* }
+# # 7. REWARD: robust_econ (Energy economy)
+# for noise in "${NOISE_CONFIGS[@]}"; do
+#     obs=${noise% *}
+#     act=${noise#* }
     
-    # Config A: Balanced
-    launch_exp "robust_econ" $obs $act "v_weight=1.0" "energy_weight=0.001"
+#     # Config A: Balanced
+#     launch_exp "robust_econ" $obs $act "v_weight=1.0" "energy_weight=0.001"
     
-    # Config B: Very Economical ("Lazy" robot)
-    launch_exp "robust_econ" $obs $act "v_weight=1.0" "energy_weight=0.01"
-done
+#     # Config B: Very Economical ("Lazy" robot)
+#     launch_exp "robust_econ" $obs $act "v_weight=1.0" "energy_weight=0.01"
+# done
 
 # ==============================================================================
 # END OF SCRIPT

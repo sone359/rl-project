@@ -287,7 +287,7 @@ def make_walker2d_env(
             env,
             video_folder=video_folder,
             name_prefix=prefix,
-            episode_trigger=lambda ep_id: True,  # record every episode
+            episode_trigger=lambda ep_id: ep_id == 0,  # record first episode only
             video_length=0,                       # full episode
         )
 
