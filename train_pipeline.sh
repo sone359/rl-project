@@ -8,7 +8,7 @@
 # Number of CPU cores to use simultaneously.
 # Tip: Always leave 2-4 cores free for the OS and background tasks.
 # Example: On a 14-core machine, setting this to 10 is ideal.
-MAX_JOBS=4
+MAX_JOBS=6
 
 # Duration of training for each model (in timesteps).
 # 100,000 is good for quick tests. For final results, aim for 1,000,000+.
@@ -28,6 +28,8 @@ TOTAL_JOBS=56  # (7 rewards * 2 configs * 4 noise levels)
 # Directories and Files
 LOG_DIR="./logs"          # Where TensorBoard logs and CSV files will be saved
 PYTHON_SCRIPT="train.py"  # The name of your training script
+
+ALGORITHM="PPO"        # The RL algorithm to use (e.g., SAC, PPO)
 
 # Automatically create the log directory if it doesn't exist
 mkdir -p "$LOG_DIR"
@@ -77,7 +79,7 @@ function launch_exp {
     done
 
     # Final Run Name (Must match the logic inside train.py exactly!)
-    local run_name="walker2d-SAC-${reward}-ts${TIMESTEPS}-seed${SEED}-obsnoise${obs_noise}-actnoise${act_noise}-rewardparams${param_str}"
+    local run_name="walker2d-${ALGORITHM}-${reward}-ts${TIMESTEPS}-seed${SEED}-obsnoise${obs_noise}-actnoise${act_noise}-rewardparams${param_str}"
     
     # Sentinel file to check if training is already done
     local target_file="$LOG_DIR/final_model_${run_name}.zip"
@@ -98,6 +100,7 @@ function launch_exp {
     # We redirect text output to "void" (/dev/null) to keep the terminal clean.
     # Errors and important info are handled by TensorBoard logs.
     python $PYTHON_SCRIPT \
+        --algorithm "$ALGORITHM" \
         --reward "$reward" \
         --timesteps $TIMESTEPS \
         --seed $SEED \
@@ -129,7 +132,7 @@ NOISE_CONFIGS=(
 )
 
 # --- EXPERIMENT LIST ---
-To add an experiment, copy a block and change the parameters.
+# To add an experiment, copy a block and change the parameters.
 
 # 1. REWARD: speed_energy (Classic)
 for noise in "${NOISE_CONFIGS[@]}"; do

@@ -76,6 +76,7 @@ def main():
     parser = argparse.ArgumentParser(description="Plot results for a specific experiment config.")
     
     # Arguments must match train.py to allow copy-pasting commands
+    parser.add_argument("--algorithm", type=str, required=True)
     parser.add_argument("--reward", type=str, required=True)
     parser.add_argument("--timesteps", type=int, default=100_000)
     parser.add_argument("--seed", type=int, default=42)
@@ -96,7 +97,7 @@ def main():
     # We use wildcards (*) for noise values
     # Format: monitor-walker2d-SAC-{reward}-ts{ts}-seed{seed}-obsnoise*-actnoise*-rewardparams{params}.csv.monitor.csv
     file_pattern = (
-        f"monitor-walker2d-SAC-{args.reward}-"
+        f"monitor-walker2d-{args.algorithm}-{args.reward}-"
         f"ts{args.timesteps}-seed{args.seed}-"
         f"obsnoise*-actnoise*-"
         f"rewardparams{param_str}.csv.monitor.csv"
@@ -137,7 +138,7 @@ def main():
 
     # 3. Prepare Output Directory
     # We create a subfolder named after the params to keep things organized
-    exp_name = f"{args.reward}_{param_str}" if param_str else f"{args.reward}_default"
+    exp_name = f"{args.algorithm}_{args.reward}_{param_str}" if param_str else f"{args.algorithm}_{args.reward}_default"
     save_dir = os.path.join(args.output_dir, exp_name)
     os.makedirs(save_dir, exist_ok=True)
     
