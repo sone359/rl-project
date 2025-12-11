@@ -13,17 +13,27 @@ Later, perturbations (noise, random pushes, domain randomization, etc.) can be a
 
 ## 1. Project Structure
 
-Typical layout:
-
 ```text
 rl-project/
-  reward_function.py      # all 7 custom reward functions + registry REWARD_FNS
-  walker2d_env.py         # generic Walker2d environment wrapper using custom rewards
-  train.py                # command-line training script (SAC)
-  videos_cli/             # (created at runtime) evaluation videos
-  notebooks/              # (optional) Jupyter notebooks for analysis
-  README.md
-````
+├── reward_function.py      # 7 custom reward functions + registry REWARD_FNS
+├── walker2d_env.py         # Generic Walker2d wrapper with noise injection
+├── train.py                # CLI training script (SAC/PPO) with checkpointing
+├── train_pipeline.sh       # Batch training across configs and noise levels
+├── plots.py                # Per-experiment visualization script
+├── plots_pipeline.sh       # Batch plot generation
+├── plots_synthesis.py      # Global comparison figures
+├── latex_summary.py        # LaTeX table generator for reports
+├── manual_merge.py         # Utility for merging interrupted logs
+├── README.md               # This file
+├── logs/                   # Training outputs (created at runtime)
+│   ├── monitor-*.csv       # Episode rewards and lengths
+│   ├── noise-*.csv         # Per-step noise values
+│   ├── checkpoints/        # Model checkpoints
+│   └── tb_logs/            # TensorBoard logs
+├── plots/                  # Generated figures (created at runtime)
+├── videos_cli/             # Evaluation videos (created at runtime)
+└── final_logs/             # Archived final results
+```
 
 ### 1.1. `reward_function.py`
 
@@ -466,20 +476,269 @@ You can explore the effect of smaller/larger `energy_weight` (more or less energ
 
 ---
 
-## 6. Perturbations (Future Work)
+## 6. Perturbations (Noise Injection)
 
-The file `walker2d_env.py` contains several `# TODO: perturbations` markers where you can later add:
+The environment wrapper `walker2d_env.py` supports **noise injection** to test robustness:
 
-* **Action noise** (sensor/actuator noise),
-* **Observation noise**,
-* **Random pushes** on the torso,
-* **Domain randomization** at reset (mass, friction, etc.).
+### 6.1. Observation Noise (Sensor Noise)
 
-These are the hooks you will use to run **stress tests** on each reward function and evaluate robustness.
+Gaussian noise added to observations after `env.step()`:
+
+```bash
+python train.py --reward speed_energy --obs-noise-std 0.01 --timesteps 100000
+```
+
+### 6.2. Action Noise (Actuator Noise)
+
+Gaussian noise added to actions before `env.step()`:
+
+```bash
+python train.py --reward speed_energy --action-noise-std 0.1 --timesteps 100000
+```
+
+### 6.3. Combined Noise
+
+Test under realistic conditions with both noises:
+
+```bash
+python train.py --reward speed_energy \
+    --obs-noise-std 0.01 \
+    --action-noise-std 0.1 \
+    --timesteps 100000
+```
+
+### 6.4. Noise Logging
+
+Noise values are logged to `noise-{run_name}.csv` for analysis:
+- Columns: `timestep`, `obs_noise_0`, ..., `obs_noise_N`, `action_noise_0`, ..., `action_noise_M`
+
+### 6.5. Future Extensions
+
+The code contains `# TODO: perturbations` markers for additional perturbation types:
+- **Random pushes** on the torso
+- **Domain randomization** (mass, friction, etc.)
+- **Reset-time perturbations**
 
 ---
 
-## 7. Troubleshooting
+## 7. Batch Training Pipeline
+
+For running systematic experiments across multiple reward configurations and noise levels, use the bash script `train_pipeline.sh`.
+
+### 8.1. Configuration
+
+Edit the configuration section at the top of the script:
+
+```bash
+MAX_JOBS=6          # Number of parallel jobs (leave 2-4 cores free)
+TIMESTEPS=800000    # Training duration per model
+SEED=42             # Random seed for reproducibility
+RESUME=true         # Resume from checkpoints if available
+ALGORITHM="PPO"     # RL algorithm (PPO, SAC, etc.)
+LOG_DIR="./logs"    # Output directory for logs
+```
+
+### 8.2. Noise Scenarios
+
+The pipeline tests each reward configuration under four noise scenarios:
+
+| Scenario | Obs Noise | Act Noise | Description |
+|----------|-----------|-----------|-------------|
+| Clean    | 0.0       | 0.0       | Baseline (perfect environment) |
+| Obs Only | 0.01      | 0.0       | Noisy sensors |
+| Act Only | 0.0       | 0.1       | Noisy motors |
+| Combined | 0.01      | 0.1       | Both noises (stress test) |
+
+### 8.3. Running the Campaign
+
+```bash
+chmod +x train_pipeline.sh
+./train_pipeline.sh
+```
+
+The script will:
+1. Launch parallel training jobs (respecting `MAX_JOBS`),
+2. Skip already completed runs (checks for final model files),
+3. Save logs, checkpoints, and monitor CSVs to `./logs/`.
+
+### 8.4. Monitoring Progress
+
+Use TensorBoard to monitor training:
+
+```bash
+tensorboard --logdir ./logs
+# Open http://localhost:6006 in your browser
+```
+
+---
+
+## 8. Analysis & Visualization
+
+### 8.1. Per-Experiment Plots (`plots.py`)
+
+Generate detailed plots for a specific reward configuration:
+
+```bash
+python plots.py \
+    --algorithm PPO \
+    --reward speed_energy \
+    --reward-param w_forward=1.0 \
+    --reward-param w_ctrl=1.0 \
+    --reward-param w_survive=1.0 \
+    --timesteps 800000 \
+    --log-dir ./logs \
+    --output-dir ./plots
+```
+
+This generates for each configuration:
+- **Learning Curve**: Smoothed reward over timesteps (comparing noise levels)
+- **Stability Boxplot**: Episode length distribution (last 100 episodes)
+- **Performance Barplot**: Final reward with standard deviation
+- **Relative Drop**: Performance degradation vs clean baseline
+- **AUC (Sample Efficiency)**: Area under the learning curve
+
+Outputs are saved to `./plots/<algorithm>_<reward>_<params>/`.
+
+### 8.2. Batch Plot Generation (`plots_pipeline.sh`)
+
+Generate plots for all configured experiments:
+
+```bash
+chmod +x plots_pipeline.sh
+./plots_pipeline.sh
+```
+
+### 8.3. Global Synthesis Plots (`plots_synthesis.py`)
+
+Generate high-level summary figures comparing all experiments:
+
+```bash
+python plots_synthesis.py --log-dir ./final_logs/logs
+```
+
+This creates:
+1. **Global Stability**: Boxplot of episode lengths under combined noise
+2. **Relative Robustness**: Bar chart of % performance drop (Clean → Combined)
+3. **Learning Dynamics Grid**: 2×2 grid comparing learning curves per reward type
+
+Outputs are saved to `./final_logs/plots/synthesis/`.
+
+### 8.4. LaTeX Results Table (`latex_summary.py`)
+
+Generate a comprehensive LaTeX table for academic reports:
+
+```bash
+python latex_summary.py --log-dir ./logs
+```
+
+This produces `results_table_v2.tex` with:
+- Rows: Algorithm × Reward × Variant configurations
+- Columns: Noise scenarios (Clean, Obs Only, Act Only, Combined)
+- Cells: Mean reward ± std (episode length)
+
+---
+
+## 9. Train.py Advanced Options
+
+The training script supports additional features:
+
+### 9.1. VecNormalize (Enabled by Default)
+
+Observation normalization helps with training stability:
+
+```bash
+# Disable VecNormalize
+python train.py --reward speed_energy --no-vecnormalize
+
+# Normalize rewards as well (usually keep False)
+python train.py --reward speed_energy --norm-reward
+
+# Adjust observation clipping
+python train.py --reward speed_energy --clip-obs 10.0
+```
+
+### 9.2. Resume Training
+
+Resume from the latest checkpoint:
+
+```bash
+python train.py --reward speed_energy --timesteps 1000000 --resume
+```
+
+The script will:
+1. Find the latest model checkpoint in `./logs/checkpoints/`
+2. Load VecNormalize statistics
+3. Merge monitor logs for continuous tracking
+
+### 9.3. Full CLI Reference
+
+```bash
+python train.py --help
+```
+
+Key arguments:
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--algorithm` | SAC | RL algorithm (SAC, PPO) |
+| `--reward` | required | Reward function name |
+| `--timesteps` | 100000 | Training steps |
+| `--reward-param` | - | Hyperparameter (repeatable) |
+| `--obs-noise-std` | 0.0 | Observation noise σ |
+| `--action-noise-std` | 0.0 | Action noise σ |
+| `--seed` | 42 | Random seed |
+| `--video` | False | Record evaluation video |
+| `--resume` | False | Resume from checkpoint |
+| `--log-dir` | ./logs | Log directory |
+
+---
+
+## 10. Project File Summary
+
+| File | Description |
+|------|-------------|
+| `reward_function.py` | 7 custom reward functions with registry |
+| `walker2d_env.py` | Generic reward wrapper + environment factory |
+| `train.py` | CLI training script with checkpointing |
+| `train_pipeline.sh` | Batch training across configs/noise levels |
+| `plots.py` | Per-experiment visualization |
+| `plots_pipeline.sh` | Batch plot generation |
+| `plots_synthesis.py` | Global comparison figures |
+| `latex_summary.py` | LaTeX table generator for reports |
+| `manual_merge.py` | Utility for merging interrupted logs |
+
+---
+
+## 11. Example Workflow
+
+1. **Run a quick test** to verify setup:
+   ```bash
+   python train.py --reward speed_energy --timesteps 10000 --video
+   ```
+
+2. **Launch full campaign** (takes several hours):
+   ```bash
+   ./train_pipeline.sh
+   ```
+
+3. **Monitor training**:
+   ```bash
+   tensorboard --logdir ./logs
+   ```
+
+4. **Generate all plots**:
+   ```bash
+   ./plots_pipeline.sh
+   python plots_synthesis.py --log-dir ./logs
+   ```
+
+5. **Create results table**:
+   ```bash
+   python latex_summary.py --log-dir ./logs
+   ```
+
+---
+
+## 12. Troubleshooting
 
 * **Import error on `np.float_`**
   If you use NumPy 2.x, replace `np.float_` with `np.float64` in all type annotations.
@@ -493,20 +752,20 @@ These are the hooks you will use to run **stress tests** on each reward function
       ...
   ```
 
-  And that `reward_function.py` is in the Python path.
-
 * **Black video**
-  Training and video recording are separated:
+  Training and video recording are separated. Ensure evaluation uses:
+  - `record_video=True`
+  - `render_mode="rgb_array"`
 
-  * Training env: `record_video=False`
-  * Evaluation env: `record_video=True, render_mode="rgb_array"`
+* **Out of memory with parallel jobs**
+  Reduce `MAX_JOBS` in `train_pipeline.sh`.
 
-  If you still get black frames, check your MuJoCo / GPU / ffmpeg setup.
+* **Missing log files for plots**
+  Ensure filenames match the expected pattern:
+  ```
+  monitor-walker2d-{ALGO}-{REWARD}-ts{TIMESTEPS}-seed{SEED}-obsnoise{OBS}-actnoise{ACT}-rewardparams{PARAMS}.csv.monitor.csv
+  ```
 
 ---
 
-This setup should let you train and compare **all seven reward functions** from the command line, and extend the project later with various perturbations to study robustness.
-
-```
-::contentReference[oaicite:0]{index=0}
-```
+This setup enables systematic comparison of **reward shaping strategies** under various **perturbation scenarios** for robustness analysis on the Walker2d locomotion task.
