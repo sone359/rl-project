@@ -8,7 +8,7 @@ OUTPUT_DIR="./plots"
 PYTHON_SCRIPT="plots.py"
 TIMESTEPS=800000
 SEED=42
-ALGORITHM="PPO" # Example: PPO, SAC, TD3, etc.
+ALGORITHM="TD3" # Example: PPO, SAC, TD3, etc.
 
 # Ensure python dependencies
 python -c "import pandas, seaborn, matplotlib" 2>/dev/null || { echo "Missing python libs"; exit 1; }

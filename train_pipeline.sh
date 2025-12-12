@@ -29,7 +29,7 @@ TOTAL_JOBS=56  # (7 rewards * 2 configs * 4 noise levels)
 LOG_DIR="./logs"          # Where TensorBoard logs and CSV files will be saved
 PYTHON_SCRIPT="train.py"  # The name of your training script
 
-ALGORITHM="PPO"        # The RL algorithm to use (e.g., SAC, PPO)
+ALGORITHM="TD3"        # The RL algorithm to use (e.g., SAC, PPO)
 
 # Automatically create the log directory if it doesn't exist
 mkdir -p "$LOG_DIR"
@@ -135,28 +135,28 @@ NOISE_CONFIGS=(
 # To add an experiment, copy a block and change the parameters.
 
 # 1. REWARD: speed_energy (Classic)
-for noise in "${NOISE_CONFIGS[@]}"; do
-    obs=${noise% *}
-    act=${noise#* }
+# for noise in "${NOISE_CONFIGS[@]}"; do
+#     obs=${noise% *}
+#     act=${noise#* }
     
-    # Config A: Standard
-    launch_exp "speed_energy" $obs $act "w_forward=1.0" "w_ctrl=1.0" "w_survive=1.0"
+#     # Config A: Standard
+#     launch_exp "speed_energy" $obs $act "w_forward=1.0" "w_ctrl=1.0" "w_survive=1.0"
     
-    # Config B: Cautious (High survival bonus)
-    launch_exp "speed_energy" $obs $act "w_forward=0.5" "w_ctrl=1.0" "w_survive=3.0"
-done
+#     # Config B: Cautious (High survival bonus)
+#     launch_exp "speed_energy" $obs $act "w_forward=0.5" "w_ctrl=1.0" "w_survive=3.0"
+# done
 
-# 2. REWARD: target_speed (Tracking specific speed)
-for noise in "${NOISE_CONFIGS[@]}"; do
-    obs=${noise% *}
-    act=${noise#* }
+# # 2. REWARD: target_speed (Tracking specific speed)
+# for noise in "${NOISE_CONFIGS[@]}"; do
+#     obs=${noise% *}
+#     act=${noise#* }
     
-    # Config A: Slow Walk (1.5 m/s)
-    launch_exp "target_speed" $obs $act "v_target=1.5" "alpha=1.0" "beta=0.001"
+#     # Config A: Slow Walk (1.5 m/s)
+#     launch_exp "target_speed" $obs $act "v_target=1.5" "alpha=1.0" "beta=0.001"
     
-    # Config B: Fast Walk (2.5 m/s)
-    launch_exp "target_speed" $obs $act "v_target=2.5" "alpha=1.0" "beta=0.001"
-done
+#     # Config B: Fast Walk (2.5 m/s)
+#     launch_exp "target_speed" $obs $act "v_target=2.5" "alpha=1.0" "beta=0.001"
+# done
 
 # 3. REWARD: posture_stability (Elegant robot)
 for noise in "${NOISE_CONFIGS[@]}"; do
@@ -191,29 +191,29 @@ for noise in "${NOISE_CONFIGS[@]}"; do
     launch_exp "dynamic_stability" $obs $act "lambda_state=0.001"
 done
 
-# # 6. REWARD: anti_fall_progressive (Fall prevention)
-# for noise in "${NOISE_CONFIGS[@]}"; do
-#     obs=${noise% *}
-#     act=${noise#* }
+# 6. REWARD: anti_fall_progressive (Fall prevention)
+for noise in "${NOISE_CONFIGS[@]}"; do
+    obs=${noise% *}
+    act=${noise#* }
     
-#     # Config A: Early Detection (Punishes as soon as height drops slightly)
-#     launch_exp "anti_fall_progressive" $obs $act "h_crit=1.1" "w_h=5.0"
+    # Config A: Early Detection (Punishes as soon as height drops slightly)
+    launch_exp "anti_fall_progressive" $obs $act "h_crit=1.1" "w_h=5.0"
     
-#     # Config B: Late Detection (Punishes only near the ground)
-#     launch_exp "anti_fall_progressive" $obs $act "h_crit=0.8" "w_h=5.0"
-# done
+    # Config B: Late Detection (Punishes only near the ground)
+    launch_exp "anti_fall_progressive" $obs $act "h_crit=0.8" "w_h=5.0"
+done
 
-# # 7. REWARD: robust_econ (Energy economy)
-# for noise in "${NOISE_CONFIGS[@]}"; do
-#     obs=${noise% *}
-#     act=${noise#* }
+# 7. REWARD: robust_econ (Energy economy)
+for noise in "${NOISE_CONFIGS[@]}"; do
+    obs=${noise% *}
+    act=${noise#* }
     
-#     # Config A: Balanced
-#     launch_exp "robust_econ" $obs $act "v_weight=1.0" "energy_weight=0.001"
+    # Config A: Balanced
+    launch_exp "robust_econ" $obs $act "v_weight=1.0" "energy_weight=0.001"
     
-#     # Config B: Very Economical ("Lazy" robot)
-#     launch_exp "robust_econ" $obs $act "v_weight=1.0" "energy_weight=0.01"
-# done
+    # Config B: Very Economical ("Lazy" robot)
+    launch_exp "robust_econ" $obs $act "v_weight=1.0" "energy_weight=0.01"
+done
 
 # ==============================================================================
 # END OF SCRIPT

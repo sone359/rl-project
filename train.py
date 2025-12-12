@@ -6,7 +6,7 @@ Now supports VecNormalize (enabled by default).
 import argparse
 from typing import Dict, Any, Optional, Tuple
 
-from stable_baselines3 import SAC, PPO
+from stable_baselines3 import SAC, PPO, TD3
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback, CallbackList
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
@@ -284,7 +284,7 @@ def parse_reward_params(param_list) -> Dict[str, Any]:
 
 def main():
     parser = argparse.ArgumentParser(description="Train an RL agent on Walker2d-v5 with custom rewards.")
-    parser.add_argument("--algorithm", type=str, default="SAC", help="RL algorithm to use. Available: SAC, PPO")
+    parser.add_argument("--algorithm", type=str, default="SAC", help="RL algorithm to use. Available: SAC, PPO, TD3")
     parser.add_argument("--reward", type=str, required=True, help=f"Reward name. Available: {list(REWARD_FNS.keys())}")
     parser.add_argument("--timesteps", type=int, default=100_000, help="Number of training timesteps.")
     parser.add_argument(
@@ -463,9 +463,19 @@ def main():
                     device="auto",
                 )
                 print("[DEBUG] PPO model loaded for resuming.")
+            
+            elif args.algorithm == "TD3":
+                model = TD3.load(
+                   checkpoint_path,
+                   env=train_env,
+                   verbose=1,
+                   seed=args.seed,
+                   tensorboard_log=args.log_dir,
+                   device="auto")
+                print("[DEBUG] TD3 model loaded for resuming.")
             else:
-                raise ValueError(f"Unsupported algorithm '{args.algorithm}'. Available: SAC, PPO")
-            print("[INFO] Resumed training from checkpoint.")
+                raise ValueError(f"Unsupported algorithm '{args.algorithm}'. Available: SAC, PPO, TD3")
+            
         else:
             if args.algorithm == "SAC":
                 model = SAC(
@@ -487,8 +497,19 @@ def main():
                     device="auto",
                 )
                 print("[DEBUG] PPO model created.")
+
+            elif args.algorithm == "TD3":
+                model = TD3(
+                    "MlpPolicy",
+                    train_env,
+                    verbose=1,
+                    seed=args.seed,
+                    tensorboard_log=args.log_dir,
+                    device="auto",
+                )
+                print("[DEBUG] TD3 model created.")
             else:
-                raise ValueError(f"Unsupported algorithm '{args.algorithm}'. Available: SAC, PPO")
+                raise ValueError(f"Unsupported algorithm '{args.algorithm}'. Available: SAC, PPO, TD3")
 
         # -----------------------
         # 4) Train
